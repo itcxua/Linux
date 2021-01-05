@@ -114,9 +114,9 @@ EOF
 USERNAME="ftpuser"
 PASSWORD="ftpuser"
 # echo 'New Password : '; read PASSWORD
-userdel -s /sbin/nologin $USERNAME
-useradd -s /sbin/nologin $USERNAME
-passwd $USERNAME $PASSWORD
+userdel -f /sbin/nologin ftpuser
+useradd -s /sbin/nologin ftpuser
+passwd ftpuser ftpuser
 
 # Пользователя создаем без оболочки. Тут сразу можно указать в качестве домашней директории необходимый каталог, в котором будет работать пользователь. Я специально этого не делаю, чтобы продемонстрировать работу пользовательских настроек в отдельном файле. Пользователь будет создан со стандартным домашним каталогом в /home, но при работе по ftp он будет направлен в другой каталог, который мы ему укажем через файл пользовательских настроек vsftpd.
 # Здесь стоит обратить внимание на один момент.
