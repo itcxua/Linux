@@ -1,9 +1,22 @@
 #!/bin/sh
 
-echo "#====   FTP в CentOS 7   ====#"
+echo "#====   FTP-Server   ====#"
+
+# Установить FTP-сервер?
+while true; do
+read -e -p "Installed FTP-Server now or later (y/n)? " rsn
+  case $rsn in
+    [Yy]* ) break;;
+    [Nn]* ) exit;
+  esac
+done
+
+InstallFTPServSYSTEMuser()
+{
+sleep 10
 #= схема с сис.пользователям =#
 
-##==============≠==============
+##================ ≠≠≠ ================
 ## VARIABLE
 DATA=$(date +%Y%m%d-%H%M%S);
 LOGFILE='/var/log/vsftpd.log'
@@ -11,13 +24,12 @@ VSFTPD_CONF='/etc/vsftpd/vsftpd.conf'
 VSFTPD_PAM='/etc/pam.d/vsftpd'
 
 
-##==============≠==============
-# обновления системы:
-yum update -y
-# Устанавливаем vsftpd:
-yum install vsftpd -y
 
-##==============≠==============
+##================ ≠≠≠ ================
+# обновления системы и Устанавливаем vsftpd:
+yum update -y && yum install vsftpd -y
+
+##================ ≠≠≠ ================
 ##=== Переходим к настройке ===
 # схему работы ftp сервера с системными пользователями.
 # Пользователю root разрешаю ходить по всему серверу.
@@ -25,17 +37,16 @@ yum install vsftpd -y
 # Анонимных пользователей отключаю.
 # Очистим каталог /etc/vsftpd, нам ничего не нужно из того,
 
-# BACKUP VSFTPD DIR
-tar czvf /etc/vsftpd.$DATA.tar.gz /etc/vsftpd
-rm -rf /etc/vsftpd/*
+# BACKUP VSFTPD каталога и очистка /etc/vsftpd/
+tar czvf /etc/vsftpd.$DATA.tar.gz /etc/vsftpd && rm -rf /etc/vsftpd/*
 
-  ##==============≠==============
-  # конфиг сервера /etc/vsftpd/vsftpd.conf
+##================ ≠≠≠ ================
+## конфиг сервера /etc/vsftpd/vsftpd.conf
 cat > $VSFTPD_CONF <<EOF
-################################
-##    ===== CONFIG =====
-##    ==| local user |==
-################################
+##================ ≠≠≠ ================
+##          ===== CONFIG =====
+##          ==| local user |==
+##================ ≠≠≠ ================
 
 # Запуск сервера в режиме службы
 listen=YES
@@ -108,7 +119,7 @@ pasv_min_port=49000
 pasv_max_port=55000
 EOF
 
-##==============≠==============
+##================ ≠≠≠ ================
 # Добавим пользователя ftp в систему:
 # echo 'New User name: '; read USERNAME
 USERNAME="ftpuser"
@@ -118,13 +129,15 @@ userdel -f /sbin/nologin ftpuser
 useradd -s /sbin/nologin ftpuser
 passwd ftpuser ftpuser
 
-# Пользователя создаем без оболочки. Тут сразу можно указать в качестве домашней директории необходимый каталог, в котором будет работать пользователь. Я специально этого не делаю, чтобы продемонстрировать работу пользовательских настроек в отдельном файле. Пользователь будет создан со стандартным домашним каталогом в /home, но при работе по ftp он будет направлен в другой каталог, который мы ему укажем через файл пользовательских настроек vsftpd.
-# Здесь стоит обратить внимание на один момент.
-# Начиная с какой-то версии то ли vsftpd или Centos пользователь с оболочкой /sbin/nologin не может подключаться по ftp. Связано это с тем, что идет проверка оболочки, а ее нет в файле /etc/shells. Я не пробовал ее туда добавлять, так как не понимаю до конца назначение этого файла. Я предлагаю просто отключить проверку оболочки в настройках pam для vsftpd. в  файле /etc/pam.d/vsftpd. Нужно закомментировать следующую строку:
-#auth required pam_shells.so
+# Пользователя создаем без оболочки. Тут сразу можно указать в качестве домашней директории необходимый каталог, в котором будет работать пользователь. Пользователь будет создан со стандартным домашним каталогом в /home, но при работе по ftp он будет направлен в другой каталог, который мы ему укажем через файл пользовательских настроек vsftpd. пользователь с оболочкой /sbin/nologin не может подключаться по ftp. Связано это с тем, что идет проверка оболочки, а ее нет в файле /etc/shells.
+
+
+## отключАЕМ проверку оболочки в настройках pam для vsftpd. в  файле /etc/pam.d/vsftpd.
+## Закомментируем строку: auth required pam_shells.so
 #sed -i 's/^auth required .*/#auth required pam_shells.so/g' /etc/pam.d/vsftpd
 
-# пересоздаем
+##================ ≠≠≠ ================
+## пересоздаем файл /etc/pam.d/vsftpd
 cat $VSFTPD_PAM > $VSFTPD_PAM.$DATA.bac
 cat > $VSFTPD_PAM <<EOF
 #%PAM-1.0
@@ -137,26 +150,36 @@ session    required pam_loginuid.so
 session    include  password-auth
 EOF
 
+##================ ≠≠≠ ================
 # каталог настроек пользователей:
-mkdir -p /etc/vsftpd/users
+FTP_DIRCONF='/etc/vsftpd/users'
+if [[ ! -e $FTP_DIRCONF ]];
+  then
+    mkdir -p /etc/vsftpd/users
+      elif [[ ! -d $FTP_DIRCONF ]];
+  then
+    echo "$FTP_DIRCONF exists, but is not a dir" 1>&2
+    rm -rf $FTP_DIRCONF && mkdir $FTP_DIRCONF;
+fi
 
+
+##================ ≠≠≠ ================
 # В каталоге можно будет создать файлы с именами пользователей
 # Cозд. файл с польз ftpuser и укажем домашний каталог:
 touch /etc/vsftpd/users/ftpuser
-echo 'local_root=/ftp/ftpuser/' >> '/etc/vsftpd/users/ftpuser'
+echo "local_root=/ftp/ftpuser/" >> "/etc/vsftpd/users/ftpuser"
 
 # создать каталог и назнач. ему владельца:
 mkdir /ftp && chmod 0777 /ftp
 mkdir /ftp/ftpuser && chown ftpuser. /ftp/ftpuser/
 
-# Список, разрешен выход за HOME:
+# Список, разрешен выход за Домашний каталог:
 touch /etc/vsftpd/chroot_list
 
 # Добавляем туда рута:
 echo 'root' >> /etc/vsftpd/chroot_list
 
-# Создать файл со списком пользователей ftp.
-
+##================ ≠≠≠ ================
 # Список разрешенн доступ к FTP:
 touch /etc/vsftpd/user_list
 echo 'root' >> /etc/vsftpd/user_list && echo 'ftpuser' >> /etc/vsftpd/user_list
@@ -165,6 +188,7 @@ echo 'root' >> /etc/vsftpd/user_list && echo 'ftpuser' >> /etc/vsftpd/user_list
 # файл логов:
 touch $LOGFILE && chmod 600 $LOGFILE
 
+##================ ≠≠≠ ================
 # Добавляем vsftpd в автозагрузку и запускаем:
 systemctl enable vsftpd
 systemctl start vsftpd
@@ -174,3 +198,4 @@ systemctl status vsftpd
 netstat -tulnp | grep vsftpd
 
 exit
+}
